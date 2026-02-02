@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insider Game - Persistent Settings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --accent: #6c5ce7; 
+            --safe: #00b894;   
+            --danger: #ff7675; 
+            --shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 2.5rem 2rem;
+            border-radius: 30px;
+            box-shadow: var(--shadow);
+            width: 85%;
+            max-width: 380px;
+            text-align: center;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 { margin-top: 0; margin-bottom: 0.5rem; font-weight: 600; font-size: 1.5rem; }
+        p { color: var(--text-sub); margin-bottom: 1.2rem; font-size: 0.95rem; line-height: 1.5; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { font-size: 0.85rem; color: var(--text-sub); margin-left: 5px; }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+            margin-top: 5px;
+        }
+
+        input:focus { border-color: var(--accent); }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 18px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+            margin-top: 10px;
+        }
+
+        button:active { transform: scale(0.95); }
+
+        .role-text {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--accent);
+            margin: 1.5rem 0;
+        }
+
+        .word-box {
+            background: #f1f2f6;
+            padding: 15px;
+            border-radius: 15px;
+            margin-top: 10px;
+        }
+
+        .word-text {
+            font-size: 1.4rem;
+            color: var(--safe);
+            font-weight: bold;
+        }
+
+        .timer {
+            font-size: 4rem;
+            font-weight: 700;
+            margin: 1rem 0;
+            color: var(--text-main);
+        }
+
+        .secondary-btn {
+            background: transparent;
+            color: var(--text-sub);
+            box-shadow: none;
+            margin-top: 10px;
+            font-weight: 400;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="card">
+        <h2>Insider Game</h2>
+        <p>ตั้งค่าการเล่น</p>
+        
+        <div class="input-group">
+            <label>จำนวนผู้เล่น (คน)</label>
+            <input type="number" id="player-count" min="4">
+        </div>
+
+        <div class="input-group">
+            <label>เวลาที่ใช้เล่น (นาที)</label>
+            <input type="number" id="game-time" min="1">
+        </div>
+
+        <button onclick="startGame()">เริ่มเกม</button>
+    </div>
+
+    <div id="turn-screen" class="card hidden">
+        <h2 id="player-label">ผู้เล่นคนที่ 1</h2>
+        <p>ส่งมือถือให้เพื่อนคนนี้<br>เพื่อดูบทบาทลับ</p>
+        <button onclick="showRole()">ดูบทบาท</button>
+    </div>
+
+    <div id="role-screen" class="card hidden">
+        <h2>บทบาทของคุณคือ</h2>
+        <div id="role-display" class="role-text"></div>
+        <div id="word-container" class="hidden">
+            <div class="word-box">
+                <p style="margin: 0; font-size: 0.8rem;">คำศัพท์คือ</p>
+                <div id="word-display" class="word-text"></div>
+            </div>
+        </div>
+        <button onclick="nextPlayer()" style="margin-top: 20px;">ตกลง (OK)</button>
+    </div>
+
+    <div id="timer-screen" class="card hidden">
+        <h2>เริ่มการสนทนา!</h2>
+        <div id="timer-display" class="timer">00:00</div>
+        <button id="timer-btn" onclick="toggleTimer()">เริ่มจับเวลา</button>
+        <button onclick="resetGame()" class="secondary-btn">เล่นใหม่</button>
+    </div>
+
+    <script src="insider_word.js"></script>
+
+    <script>
+        let totalPlayers = 0;
+        let currentPlayer = 0;
+        let roles = [];
+        let gameWord = "";
+        let timerInterval;
+        let secondsLeft = 0;
+
+        // --- จุดที่เพิ่มใหม่: โหลดค่าเดิมที่เคยบันทึกไว้เมื่อเปิดเว็บ ---
+        window.onload = function() {
+            const savedPlayers = localStorage.getItem('insider_players') || 4;
+            const savedTime = localStorage.getItem('insider_time') || 5;
+            
+            document.getElementById('player-count').value = savedPlayers;
+            document.getElementById('game-time').value = savedTime;
+        };
+
+        function startGame() {
+            if (typeof insider_words === 'undefined') {
+                return alert("ไม่พบไฟล์ insider_word.js");
+            }
+
+            totalPlayers = parseInt(document.getElementById('player-count').value);
+            const gameMinutes = parseInt(document.getElementById('game-time').value);
+
+            if(totalPlayers < 4) return alert("ระบุผู้เล่น 4 คนขึ้นไป");
+            if(isNaN(gameMinutes) || gameMinutes < 1) return alert("ระบุเวลาที่ถูกต้อง");
+
+            // --- จุดที่เพิ่มใหม่: บันทึกค่าล่าสุดลงเครื่อง ---
+            localStorage.setItem('insider_players', totalPlayers);
+            localStorage.setItem('insider_time', gameMinutes);
+
+            secondsLeft = gameMinutes * 60;
+            updateTimerDisplay();
+
+            gameWord = insider_words[Math.floor(Math.random() * insider_words.length)];
+            roles = new Array(totalPlayers).fill("Commoner (ชาวบ้าน)");
+            roles[0] = "Insider (ผู้บงการ)";
+            roles[1] = "Master (ผู้รู้)";
+            roles.sort(() => Math.random() - 0.5);
+
+            document.getElementById('setup-screen').classList.add('hidden');
+            showTurnScreen();
+        }
+
+        // ฟังก์ชันใหม่สำหรับกดเล่นใหม่โดยไม่ต้องกรอกค่าใหม่
+        function resetGame() {
+            location.reload(); 
+        }
+
+        function showTurnScreen() {
+            if (currentPlayer < totalPlayers) {
+                document.getElementById('player-label').innerText = `ผู้เล่นคนที่ ${currentPlayer + 1}`;
+                document.getElementById('turn-screen').classList.remove('hidden');
+                document.getElementById('role-screen').classList.add('hidden');
+            } else {
+                showTimerScreen();
+            }
+        }
+
+        function showRole() {
+            const currentRole = roles[currentPlayer];
+            document.getElementById('role-display').innerText = currentRole;
+            const wordBox = document.getElementById('word-container');
+            if (currentRole.includes("Insider") || currentRole.includes("Master")) {
+                wordBox.classList.remove('hidden');
+                document.getElementById('word-display').innerText = gameWord;
+            } else {
+                wordBox.classList.add('hidden');
+            }
+            document.getElementById('turn-screen').classList.add('hidden');
+            document.getElementById('role-screen').classList.remove('hidden');
+        }
+
+        function nextPlayer() {
+            currentPlayer++;
+            showTurnScreen();
+        }
+
+        function showTimerScreen() {
+            document.getElementById('turn-screen').classList.add('hidden');
+            document.getElementById('role-screen').classList.add('hidden');
+            document.getElementById('timer-screen').classList.remove('hidden');
+        }
+
+        function updateTimerDisplay() {
+            let mins = Math.floor(secondsLeft / 60);
+            let secs = secondsLeft % 60;
+            document.getElementById('timer-display').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('timer-btn');
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                btn.innerText = "เริ่มต่อ";
+                btn.style.background = "var(--accent)";
+            } else {
+                btn.innerText = "หยุดชั่วคราว";
+                btn.style.background = "var(--danger)";
+                timerInterval = setInterval(() => {
+                    secondsLeft--;
+                    updateTimerDisplay();
+                    if (secondsLeft <= 0) {
+                        clearInterval(timerInterval);
+                        alert("หมดเวลาแล้ว!");
+                    }
+                }, 1000);
+            }
+        }
+    </script>
+</body>
+</html>
